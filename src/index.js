@@ -1,3 +1,5 @@
+import 'requestidlecallback-polyfill'
+
 function createElement(type, props, ...children) {
   return {
     type,
