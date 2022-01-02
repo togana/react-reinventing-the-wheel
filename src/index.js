@@ -103,7 +103,10 @@ function commitWork(fiber) {
 
   console.log(fiber);
 
-  const domParent = fiber.parent.dom
+  let domParentFiber = fiber.parent
+  while (!domParentFiber.dom) { domParentFiber = domParentFiber.parent }
+  const domParent = domParentFiber.dom
+
   if (
     fiber.effectTag === "PLACEMENT" &&
     fiber.dom != null
@@ -119,11 +122,19 @@ function commitWork(fiber) {
       fiber.props
     )
   } else if (fiber.effectTag === "DELETION") {
-    domParent.removeChild(fiber.dom)
+    commitDeletion(fiber, domParent)
   }
 
   commitWork(fiber.child)
   commitWork(fiber.sibling)
+}
+
+function commitDeletion(fiber, domParent) {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom)
+  } else {
+    commitDeletion(fiber.child, domParent)
+  }
 }
 
 function render(element, container) {
@@ -182,7 +193,8 @@ function performUnitOfWork(fiber) {
 }
 
 function updateFunctionComponent(fiber) {
-  // TODO: function 時の処理を記載する
+  const children = [fiber.type(fiber.props)]
+  reconcileChildren(fiber, children)
 }
 
 function updateHostComponent(fiber) {
@@ -264,11 +276,15 @@ const updateValue = e => {
   rerender(e.target.value)
 }
 
+const Text = (props) => (
+  <h2>Hello {props.value}</h2>
+)
+
 const rerender = value => {
   const element = (
     <div>
       <input onInput={updateValue} value={value} />
-      <h2>Hello {value}</h2>
+      <Text value={value} />
     </div>
   )
   const notext = (
