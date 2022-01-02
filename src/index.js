@@ -39,6 +39,7 @@ const isProperty = key =>
 const isNew = (prev, next) => key =>
   prev[key] !== next[key]
 const isGone = (prev, next) => key => !(key in next)
+
 function updateDom(dom, prevProps, nextProps) {
   //Remove old or changed event listeners
   Object.keys(prevProps)
@@ -101,8 +102,6 @@ function commitWork(fiber) {
     return
   }
 
-  console.log(fiber);
-
   let domParentFiber = fiber.parent
   while (!domParentFiber.dom) { domParentFiber = domParentFiber.parent }
   const domParent = domParentFiber.dom
@@ -153,6 +152,8 @@ let nextUnitOfWork = null
 let currentRoot = null
 let wipRoot = null
 let deletions = null
+let wipFiber = null
+let hookIndex = null
 
 function workLoop(deadline) {
   let shouldYield = false
@@ -193,8 +194,39 @@ function performUnitOfWork(fiber) {
 }
 
 function updateFunctionComponent(fiber) {
+  wipFiber = fiber
+  hookIndex = 0
+  wipFiber.hooks = []
   const children = [fiber.type(fiber.props)]
   reconcileChildren(fiber, children)
+}
+
+function useState(initial) {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex]
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: [],
+  }
+
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach((action) => {
+    hook.state = action(hook.state);
+  });
+
+  const setState = action => {
+    hook.queue.push(action)
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    }
+    nextUnitOfWork = wipRoot
+    deletions = []
+  }
+
+  wipFiber.hooks.push(hook)
+  hookIndex++
+  return [hook.state, setState]
 }
 
 function updateHostComponent(fiber) {
@@ -267,35 +299,39 @@ function reconcileChildren(wipFiber, elements) {
 const Didact = {
   createElement,
   render,
+  useState,
 }
 
 /** @jsx Didact.createElement */
 const container = document.getElementById("root")
 
-const updateValue = e => {
-  rerender(e.target.value)
-}
-
 const Text = (props) => (
-  <h2>Hello {props.value}</h2>
+  <p>{props.value}</p>
 )
 
-const rerender = value => {
-  const element = (
-    <div>
-      <input onInput={updateValue} value={value} />
-      <Text value={value} />
-    </div>
-  )
-  const notext = (
-    <div>
-      <input onInput={updateValue} value={value} />
-    </div>
-  )
-  if (!!value) {
-    Didact.render(element, container)
-  } else {
-    Didact.render(notext, container)
-  }}
+const Input = (props) => {
+  return <input autofocus onInput={props.onInput} value={props.value} />
+};
 
-rerender("")
+const Element = () => {
+  const [value, setValue] = Didact.useState("");
+  const [valueCount, setValueCount] = Didact.useState(0);
+  const [keyCount, setKeyCount] = Didact.useState(0);
+
+  const updateValue = e => {
+    setValue(() => e.target.value)
+    setValueCount(() => e.target.value.length)
+    setKeyCount((c) => c + 1)
+  }
+
+  return (
+    <div>
+      <p>キー入力数: {keyCount}</p>
+      <p>文字入力数: {valueCount}</p>
+      <Input onInput={updateValue} value={value} />
+      {value ? <Text value={value} /> : null}
+    </div>
+  )
+}
+
+Didact.render(<Element />, container)
