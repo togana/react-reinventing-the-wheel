@@ -6,9 +6,9 @@ const Text = (props) => (
   <p>{props.value}</p>
 )
 
-const Input = (props) => {
-  return <input autofocus onInput={props.onInput} value={props.value} />
-};
+const Input = (props) => (
+  <input autofocus onInput={props.onInput} value={props.value} />
+);
 
 const Element = () => {
   const [value, setValue] = Didact.useState("");
